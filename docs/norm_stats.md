@@ -31,17 +31,17 @@ For an example of a full training config that reloads normalization statistics, 
 ## Provided Pre-training Normalization Statistics
 
 Below is a list of all the pre-training normalization statistics we provide. We provide them for both, the `pi0_base` and `pi0_fast_base` models. For `pi0_base`, set the `assets_dir` to `gs://openpi-assets/checkpoints/pi0_base/assets` and for `pi0_fast_base`, set the `assets_dir` to `gs://openpi-assets/checkpoints/pi0_fast_base/assets`.
-| Robot | Description | Asset ID |
-|-------|-------------|----------|
-| ALOHA | 6-DoF dual arm robot with parallel grippers | trossen |
-| Mobile ALOHA | Mobile version of ALOHA mounted on a Slate base | trossen_mobile |
-| Franka Emika (DROID) | 7-DoF arm with parallel gripper based on the DROID setup | droid |
-| Franka Emika (non-DROID) | Franka FR3 arm with Robotiq 2F-85 gripper | franka |
-| UR5e | 6-DoF UR5e arm with Robotiq 2F-85 gripper | ur5e |
-| UR5e bi-manual | Bi-manual UR5e setup with Robotiq 2F-85 grippers | ur5e_dual |
-| ARX | Bi-manual ARX-5 robot arm setup with parallel gripper | arx |
-| ARX mobile | Mobile version of bi-manual ARX-5 robot arm setup mounted on a Slate base | arx_mobile |
-| Fibocom mobile | Fibocom mobile robot with 2x ARX-5 arms | fibocom_mobile |
+| Robot                    | Description                                                               | Asset ID       |
+| ------------------------ | ------------------------------------------------------------------------- | -------------- |
+| ALOHA                    | 6-DoF dual arm robot with parallel grippers                               | trossen        |
+| Mobile ALOHA             | Mobile version of ALOHA mounted on a Slate base                           | trossen_mobile |
+| Franka Emika (DROID)     | 7-DoF arm with parallel gripper based on the DROID setup                  | droid          |
+| Franka Emika (non-DROID) | Franka FR3 arm with Robotiq 2F-85 gripper                                 | franka         |
+| UR5e                     | 6-DoF UR5e arm with Robotiq 2F-85 gripper                                 | ur5e           |
+| UR5e bi-manual           | Bi-manual UR5e setup with Robotiq 2F-85 grippers                          | ur5e_dual      |
+| ARX                      | Bi-manual ARX-5 robot arm setup with parallel gripper                     | arx            |
+| ARX mobile               | Mobile version of bi-manual ARX-5 robot arm setup mounted on a Slate base | arx_mobile     |
+| Fibocom mobile           | Fibocom mobile robot with 2x ARX-5 arms                                   | fibocom_mobile |
 
 
 ## Pi0 Model Action Space Definitions

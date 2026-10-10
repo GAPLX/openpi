@@ -1,10 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "openpi"
 version = "0.1.0"
-description = "Physical Intelligence open source repo"
+description = "Forked from Physical Intelligence open source repo"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { file = "LICENSE" }
 dependencies = [
     "augmax>=0.3.4",
     "dm-tree>=0.1.8",
@@ -130,10 +133,6 @@ force-single-line = true
 force-sort-within-sections = true
 single-line-exclusions = ["collections.abc", "typing", "typing_extensions"]
 known-third-party = ["wandb"]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 markers = ["manual: should be run manually."]

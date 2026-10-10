@@ -67,3 +67,6 @@ General info for Pi robots:
 - Control frequencies are either 20 Hz for UR5e and Franka, and 50 Hz for ARX and Trossen (ALOHA) arms.
 
 For DROID, we use the original DROID action configuration, with joint velocity actions in the first 7 dimensions and gripper actions in the 8th dimension + a control frequency of 15 Hz.
+
+## Action Space Examples
+- [Trossen VX300S](https://urdfbase.com/models/trossen-vx300s/)

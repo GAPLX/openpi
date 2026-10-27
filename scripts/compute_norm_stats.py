@@ -114,4 +114,5 @@ def main(config_name: str, max_frames: int | None = None):
 
 
 if __name__ == "__main__":
-    tyro.cli(main)
+    # tyro.cli(main)
+    main(config_name="pi0_xlerobot_lora")

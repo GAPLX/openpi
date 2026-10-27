@@ -1,0 +1,57 @@
+# Windows 上用已转换的 PyTorch checkpoint 做推理。
+# 安装时用本文件替换仓库根目录的 pyproject.toml，再执行 uv sync。
+# 只锁定 torch==2.7.1+cu128。transformers==4.53.2 是 PI0Pytorch 的版本检查，不能改。
+# 同步完成后覆盖 transformers：
+#   xcopy /E /Y src\openpi\models_pytorch\transformers_replace\* .venv\Lib\site-packages\transformers\
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openpi"
+version = "0.1.0"
+description = "PyTorch inference environment for a converted openpi checkpoint"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "augmax>=0.3.4",
+    "beartype>=0.19.0",
+    "chex>=0.1.90",
+    "einops>=0.8.0",
+    "filelock>=3.16.1",
+    "flax>=0.10.2",
+    "fsspec[gcs]>=2024.6.0",
+    "jax>=0.5.3",
+    "jaxtyping>=0.2.36",
+    "lerobot",
+    "ml_collections>=1.0.0",
+    "numpydantic>=1.6.6",
+    "openpi-client",
+    "optax",
+    "orbax-checkpoint>=0.11.13",
+    "safetensors",
+    "sentencepiece>=0.2.0",
+    "torch==2.7.1",
+    "torchvision==0.22.1",
+    "tqdm-loggable>=0.2",
+    "transformers==4.53.2",
+    "typing-extensions>=4.12.2",
+    "tyro>=0.9.5",
+]
+
+[project.urls]
+Repository = "https://github.com/Physical-Intelligence/openpi"
+
+[tool.uv.sources]
+openpi-client = { workspace = true }
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.workspace]
+members = ["packages/*"]

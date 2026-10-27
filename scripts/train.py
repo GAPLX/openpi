@@ -277,4 +277,16 @@ def main(config: _config.TrainConfig):
 
 
 if __name__ == "__main__":
-    main(_config.cli())
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
+
+    config = _config.get_config("pi0_xlerobot_lora")
+    config = dataclasses.replace(
+        config,
+        exp_name="debug_001",
+        overwrite=True,
+    )
+    main(config)
+
+    # main(_config.cli())

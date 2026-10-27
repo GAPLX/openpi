@@ -24,6 +24,9 @@ Example:
 
     # pi05_droid
     python examples/convert_jax_model_to_pytorch.py --checkpoint_dir /home/$USER/.cache/openpi/openpi-assets/checkpoints/pi05_droid --output_path /home/$USER/.cache/openpi/openpi-assets/checkpoints/pi05_droid_pytorch
+
+    # pi0_xlerobot_lora
+    python examples/convert_jax_model_to_pytorch.py --checkpoint_dir /home/lx/eva/openpi/checkpoints/pi0_xlerobot_lora/debug_001/29999 --config_name pi0_xlerobot_lora --output_path /home/lx/eva/openpi/checkpoints/pi0_xlerobot_lora/debug_001/29999_pytorch
 """
 
 import json

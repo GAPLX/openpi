@@ -1052,6 +1052,7 @@ _CONFIGS = [
         exp_name="debug_pi05",
         wandb_enabled=False,
     ),
+    # --- MY CONFIGS ---
     TrainConfig(
         name="pi0_xlerobot_lora",
         # Here is an example of loading a pi0 model for LoRA fine-tuning.

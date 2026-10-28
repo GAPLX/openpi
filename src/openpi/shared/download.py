@@ -22,6 +22,11 @@ DEFAULT_CACHE_DIR = "~/.cache/openpi"
 logger = logging.getLogger(__name__)
 
 
+def _is_windows_drive_scheme(scheme: str) -> bool:
+    """True when urlparse mistook a Windows drive letter for a URL scheme."""
+    return len(scheme) == 1 and scheme.isalpha()
+
+
 def get_cache_dir() -> pathlib.Path:
     cache_dir = pathlib.Path(os.getenv(_OPENPI_DATA_HOME, DEFAULT_CACHE_DIR)).expanduser().resolve()
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -48,8 +53,9 @@ def maybe_download(url: str, *, force_download: bool = False, **kwargs) -> pathl
     # Don't use fsspec to parse the url to avoid unnecessary connection to the remote filesystem.
     parsed = urllib.parse.urlparse(url)
 
-    # Short circuit if this is a local path.
-    if parsed.scheme == "":
+    # Short circuit if this is a local path. urllib.parse treats a Windows drive
+    # letter as a URL scheme, so "E:\foo" and "E:/foo" must not be downloaded.
+    if parsed.scheme == "" or _is_windows_drive_scheme(parsed.scheme):
         path = pathlib.Path(url)
         if not path.exists():
             raise FileNotFoundError(f"File not found at {url}")

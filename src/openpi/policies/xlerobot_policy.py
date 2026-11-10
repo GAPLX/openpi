@@ -7,13 +7,33 @@ from openpi import transforms
 from openpi.models import model as _model
 
 
+# Must match the joint order used by the bridge XLerobot environment and dataset recorder.
+JOINTS = (
+    "right_arm_shoulder_pan.pos",
+    "right_arm_shoulder_lift.pos",
+    "right_arm_elbow_flex.pos",
+    "right_arm_wrist_flex.pos",
+    "right_arm_wrist_roll.pos",
+    "right_arm_gripper.pos",
+    "left_arm_shoulder_pan.pos",
+    "left_arm_shoulder_lift.pos",
+    "left_arm_elbow_flex.pos",
+    "left_arm_wrist_flex.pos",
+    "left_arm_wrist_roll.pos",
+    "left_arm_gripper.pos",
+)
+CAMERAS = ("head", "left_wrist", "right_wrist")
+ACTION_DIM = len(JOINTS)
+
+
 def make_xlerobot_example() -> dict:
-    """Creates a random input example for the Libero policy."""
+    """Creates a random raw XLerobot observation, as sent by the bridge `ChunkClient`."""
     return {
-        "observation/state": np.random.rand(12),
-        "observation/images/head": np.random.randint(256, size=(224, 224, 3), dtype=np.uint8),
-        "observation/images/left_wrist": np.random.randint(256, size=(224, 224, 3), dtype=np.uint8),
-        "observation/images/right_wrist": np.random.randint(256, size=(224, 224, 3), dtype=np.uint8),
+        **{joint: np.float32(np.random.uniform(-90, 90)) for joint in JOINTS},
+        **{
+            cam: np.random.randint(256, size=(480, 640, 3), dtype=np.uint8)
+            for cam in CAMERAS
+        },
         "prompt": "do something",
     }
 
@@ -28,6 +48,27 @@ def _parse_image(image) -> np.ndarray:
 
 
 @dataclasses.dataclass(frozen=True)
+class XlerobotRawInputsRepack(transforms.DataTransformFn):
+    """Converts a raw XLerobot observation recieved from ChunkClient into the format produced by the training repack transform.
+
+    Inference only. Pass it as `repack_transforms` to `create_trained_policy`. `actions` (the RTC `prev_actions`)
+    and `prompt` are kept as is.
+    """
+
+    def __call__(self, data: dict) -> dict:
+        inputs = {
+            "observation/state": np.asarray(
+                [data[joint] for joint in JOINTS], dtype=np.float32
+            ),
+            **{f"observation/images/{cam}": data[cam] for cam in CAMERAS},
+        }
+        for key in ("actions", "prompt"):
+            if key in data:
+                inputs[key] = data[key]
+        return inputs
+
+
+@dataclasses.dataclass(frozen=True)
 class XlerobotInputs(transforms.DataTransformFn):
     """
     This class is used to convert inputs to the model to the expected format. It is used for both training and inference.
@@ -39,7 +80,6 @@ class XlerobotInputs(transforms.DataTransformFn):
     # Determines which model will be used.
     # Do not change this for your own dataset.
     model_type: _model.ModelType
-    adapt_to_aloha: bool = False
 
     def __call__(self, data: dict) -> dict:
         # Possibly need to parse images to uint8 (H,W,C) since LeRobot automatically
@@ -52,13 +92,10 @@ class XlerobotInputs(transforms.DataTransformFn):
         base_image = _parse_image(data["observation/images/head"])
         left_wrist_image = _parse_image(data["observation/images/left_wrist"])
         right_wrist_image = _parse_image(data["observation/images/right_wrist"])
-    
 
         # Create inputs dict. Do not change the keys in the dict below.
         inputs = {
-            "state": _decode_state(
-                np.asarray(data["observation/state"]), adapt_to_aloha=self.adapt_to_aloha
-            ),
+            "state": _decode_state(np.asarray(data["observation/state"])),
             "image": {
                 "base_0_rgb": base_image,
                 "left_wrist_0_rgb": left_wrist_image,
@@ -72,11 +109,9 @@ class XlerobotInputs(transforms.DataTransformFn):
         }
 
         # Pad actions to the model action dimension. Keep this for your own dataset.
-        # Actions are only available during training.
+        # Actions are available during training and, as RTC `prev_actions`, during inference.
         if "actions" in data:
-            inputs["actions"] = _decode_action(
-                np.asarray(data["actions"]), adapt_to_aloha=self.adapt_to_aloha
-            )
+            inputs["actions"] = _decode_action(np.asarray(data["actions"]))
 
         # Pass the prompt (aka language instruction) to the model.
         # Keep this for your own dataset (but modify the key if the instruction is not
@@ -96,81 +131,49 @@ class XlerobotOutputs(transforms.DataTransformFn):
     For your own dataset, you can copy this class and modify the action dimension based on the comments below.
     """
 
-    adapt_to_aloha: bool = False
-
     def __call__(self, data: dict) -> dict:
         # Only return the first N actions -- since we padded actions above to fit the model action
         # dimension, we need to now parse out the correct number of actions in the return dict.
         # For Libero, we only return the first 7 actions (since the rest is padding).
         # For your own dataset, replace `7` with the action dimension of your dataset.
         action = np.asarray(data["actions"][..., :14])
-        return {"actions": _encode_action(action, adapt_to_aloha=self.adapt_to_aloha)}
+        return {"actions": _encode_action(action)}
 
 
-def _decode_state(state: np.ndarray, adapt_to_aloha: bool = False) -> np.ndarray:
-    if not adapt_to_aloha:
-        # padding to 2×(6+1) dof
-        state = np.insert(state, [3, 9], 0)
-        # degree to radian
-        mask = np.r_[0:6, 7:13]
-        state[mask] = np.deg2rad(state[mask])
-        # reverse gripper
-        mask = np.array([6, 13])
-        state[mask] = 1 - state[mask] / 100
-    else:
-        # padding to 2×(6+1) dof
-        state = np.insert(state, [3, 9], 0)
-        # degree to radian
-        mask = np.r_[0:6, 7:13]
-        state[mask] = np.deg2rad(state[mask])
-        # flip joints
-        mask = np.array([0, 1, 2, 5, 7, 8, 9, 12])
-        state[mask] = -state[mask]
-        
+def _decode_state(state: np.ndarray) -> np.ndarray:
+    # padding to 2×(6+1) dof
+    state = np.insert(state, [3, 9], 0)
+    # degree to radian
+    mask = np.r_[0:6, 7:13]
+    state[mask] = np.deg2rad(state[mask])
+    # reverse gripper
+    mask = np.array([6, 13])
+    state[mask] = 1 - state[mask] / 100
+
     return state
 
 
-def _decode_action(action: np.ndarray, adapt_to_aloha: bool = False) -> np.ndarray:
-    if not adapt_to_aloha:
-        # padding to 2×(6+1) dof
-        action = np.insert(action, [3, 9], 0, axis=1)
-        # degree to radian
-        mask = np.r_[0:6, 7:13]
-        action[:, mask] = np.deg2rad(action[:, mask])
-        # reverse gripper
-        mask = np.array([6, 13])
-        action[:, mask] = 1 - action[:, mask] / 100
-    else:
-        # padding to 2×(6+1) dof
-        action = np.insert(action, [3, 9], 0, axis=1)
-        # degree to radian
-        mask = np.r_[0:6, 7:13]
-        action[:, mask] = np.deg2rad(action[:, mask])
-        # flip joints
-        mask = np.array([0, 1, 2, 5, 7, 8, 9, 12])
-        action[:, mask] = -action[:, mask]
-        
+def _decode_action(action: np.ndarray) -> np.ndarray:
+    # padding to 2×(6+1) dof
+    action = np.insert(action, [3, 9], 0, axis=1)
+    # degree to radian
+    mask = np.r_[0:6, 7:13]
+    action[:, mask] = np.deg2rad(action[:, mask])
+    # reverse gripper
+    mask = np.array([6, 13])
+    action[:, mask] = 1 - action[:, mask] / 100
+
     return action
 
 
-def _encode_action(action: np.ndarray, adapt_to_aloha: bool = False) -> np.ndarray:
-    if not adapt_to_aloha:
-        # recover gripper
-        mask = np.array([6, 13])
-        action[:, mask] = 100 - 100 * action[:, mask]
-        # radian to degree
-        mask = np.r_[0:6, 7:13]
-        action[:, mask] = np.rad2deg(action[:, mask])
-        # recover to 2×(5+1) dof
-        action = np.delete(action, [3, 10], axis=1)
-    else:
-        # recover flip joints
-        mask = np.array([0, 1, 2, 5, 7, 8, 9, 12])
-        action[:, mask] = -action[:, mask]
-        # radian to degree
-        mask = np.r_[0:6, 7:13]
-        action[:, mask] = np.rad2deg(action[:, mask])
-        # recover to 2×(5+1) dof
-        action = np.delete(action, [3, 10], axis=1)
+def _encode_action(action: np.ndarray) -> np.ndarray:
+    # recover gripper
+    mask = np.array([6, 13])
+    action[:, mask] = 100 - 100 * action[:, mask]
+    # radian to degree
+    mask = np.r_[0:6, 7:13]
+    action[:, mask] = np.rad2deg(action[:, mask])
+    # recover to 2×(5+1) dof
+    action = np.delete(action, [3, 10], axis=1)
 
     return action

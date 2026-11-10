@@ -15,6 +15,7 @@ from typing_extensions import override
 
 from openpi import transforms as _transforms
 from openpi.models import model as _model
+from openpi.models import rtc as _rtc
 from openpi.shared import array_typing as at
 from openpi.shared import nnx_utils
 
@@ -33,6 +34,7 @@ class Policy(BasePolicy):
         metadata: dict[str, Any] | None = None,
         pytorch_device: str = "cpu",
         is_pytorch: bool = False,
+        rtc_config: _rtc.RTCConfig | None = None,
     ):
         """Initialize the Policy.
 
@@ -46,6 +48,7 @@ class Policy(BasePolicy):
             pytorch_device: Device to use for PyTorch models (e.g., "cpu", "cuda:0").
                           Only relevant when is_pytorch=True.
             is_pytorch: Whether the model is a PyTorch model. If False, assumes JAX model.
+            rtc_config: If set, enables Real-Time Chunking. Requests may then contain an `rtc` entry, see `infer`.
         """
         self._model = model
         self._input_transform = _transforms.compose(transforms)
@@ -54,6 +57,10 @@ class Policy(BasePolicy):
         self._metadata = metadata or {}
         self._is_pytorch_model = is_pytorch
         self._pytorch_device = pytorch_device
+        self._rtc_config = rtc_config
+        shape_source = model.config if is_pytorch else model
+        self._action_horizon = shape_source.action_horizon
+        self._action_dim = shape_source.action_dim
 
         if self._is_pytorch_model:
             self._model = self._model.to(pytorch_device)
@@ -66,24 +73,93 @@ class Policy(BasePolicy):
 
     @override
     def infer(self, obs: dict, *, noise: np.ndarray | None = None) -> dict:  # type: ignore[misc]
+        """Infers an action chunk.
+
+        If the policy was created with an RTC config, `obs` may contain an `rtc` entry with:
+        - `prev_actions`: [k, action_dim] not-yet-executed actions of the previous chunk, in the same action space as
+          the `actions` returned by this method. They are mapped to model space with the input transforms, i.e.
+          relative to the current state for delta-action policies.
+        - `inference_delay`: number of control steps that will be executed while this request is processed.
+        """
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
+        rtc_request = inputs.pop("rtc", None)
+        if rtc_request is not None and self._rtc_config is None:
+            raise ValueError(
+                "Received an RTC request, but the policy was created without an RTC config."
+            )
+
+        prev_actions = None
+        if rtc_request is not None:
+            prev_actions = np.array(rtc_request["prev_actions"], dtype=np.float32)
+            if prev_actions.ndim != 2:
+                raise ValueError(
+                    f"Expected rtc.prev_actions of shape [k, action_dim], got {prev_actions.shape}"
+                )
+            if len(prev_actions) > 0:
+                inputs["actions"] = prev_actions.copy()
+
         inputs = self._input_transform(inputs)
+
+        rtc_kwargs = {}
+        if self._rtc_config is not None:
+            model_prev_actions = (
+                inputs.pop("actions", None) if rtc_request is not None else None
+            )
+            mask_dims = (
+                self._rtc_config.mask_padded_action_dims and prev_actions is not None
+            )
+            prefix, weights = _rtc.make_guidance_inputs(
+                model_prev_actions,
+                inference_delay=int(rtc_request["inference_delay"])
+                if rtc_request is not None
+                else 0,
+                action_horizon=self._action_horizon,
+                action_dim=self._action_dim,
+                config=self._rtc_config,
+                num_guided_action_dims=prev_actions.shape[-1] if mask_dims else None,
+            )
+            rtc_kwargs = {
+                "rtc_prefix": prefix,
+                "rtc_weights": weights,
+                "rtc_max_guidance_weight": self._rtc_config.max_guidance_weight,
+            }
+
         if not self._is_pytorch_model:
             # Make a batch and convert to jax.Array.
             inputs = jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
+            for key in ("rtc_prefix", "rtc_weights"):
+                if key in rtc_kwargs:
+                    rtc_kwargs[key] = jnp.asarray(rtc_kwargs[key])[np.newaxis, ...]
             self._rng, sample_rng_or_pytorch_device = jax.random.split(self._rng)
         else:
             # Convert inputs to PyTorch tensors and move to correct device
-            inputs = jax.tree.map(lambda x: torch.from_numpy(np.array(x)).to(self._pytorch_device)[None, ...], inputs)
+            inputs = jax.tree.map(
+                lambda x: torch.from_numpy(np.array(x)).to(self._pytorch_device)[
+                    None, ...
+                ],
+                inputs,
+            )
+            for key in ("rtc_prefix", "rtc_weights"):
+                if key in rtc_kwargs:
+                    rtc_kwargs[key] = torch.from_numpy(rtc_kwargs[key]).to(
+                        self._pytorch_device
+                    )[None, ...]
             sample_rng_or_pytorch_device = self._pytorch_device
 
         # Prepare kwargs for sample_actions
         sample_kwargs = dict(self._sample_kwargs)
+        sample_kwargs.update(rtc_kwargs)
         if noise is not None:
-            noise = torch.from_numpy(noise).to(self._pytorch_device) if self._is_pytorch_model else jnp.asarray(noise)
+            noise = (
+                torch.from_numpy(noise).to(self._pytorch_device)
+                if self._is_pytorch_model
+                else jnp.asarray(noise)
+            )
 
-            if noise.ndim == 2:  # If noise is (action_horizon, action_dim), add batch dimension
+            if (
+                noise.ndim == 2
+            ):  # If noise is (action_horizon, action_dim), add batch dimension
                 noise = noise[None, ...]  # Make it (1, action_horizon, action_dim)
             sample_kwargs["noise"] = noise
 
@@ -91,11 +167,15 @@ class Policy(BasePolicy):
         start_time = time.monotonic()
         outputs = {
             "state": inputs["state"],
-            "actions": self._sample_actions(sample_rng_or_pytorch_device, observation, **sample_kwargs),
+            "actions": self._sample_actions(
+                sample_rng_or_pytorch_device, observation, **sample_kwargs
+            ),
         }
         model_time = time.monotonic() - start_time
         if self._is_pytorch_model:
-            outputs = jax.tree.map(lambda x: np.asarray(x[0, ...].detach().cpu()), outputs)
+            outputs = jax.tree.map(
+                lambda x: np.asarray(x[0, ...].detach().cpu()), outputs
+            )
         else:
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...]), outputs)
 

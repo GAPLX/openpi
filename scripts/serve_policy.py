@@ -5,6 +5,7 @@ import socket
 
 import tyro
 
+from openpi.models import rtc as _rtc
 from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
 from openpi.serving import websocket_policy_server
@@ -51,6 +52,10 @@ class Args:
     # Record the policy's behavior for debugging.
     record: bool = False
 
+    # Enable Real-Time Chunking, for clients that send `rtc` requests (see `openpi_client.rtc_action_broker`).
+    rtc: bool = False
+    rtc_config: _rtc.RTCConfig = dataclasses.field(default_factory=_rtc.RTCConfig)
+
     # Specifies how to load the policy. If not provided, the default policy for the environment will be used.
     policy: Checkpoint | Default = dataclasses.field(default_factory=Default)
 
@@ -76,24 +81,38 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
 }
 
 
-def create_default_policy(env: EnvMode, *, default_prompt: str | None = None) -> _policy.Policy:
+def create_default_policy(
+    env: EnvMode,
+    *,
+    default_prompt: str | None = None,
+    rtc_config: _rtc.RTCConfig | None = None,
+) -> _policy.Policy:
     """Create a default policy for the given environment."""
     if checkpoint := DEFAULT_CHECKPOINT.get(env):
         return _policy_config.create_trained_policy(
-            _config.get_config(checkpoint.config), checkpoint.dir, default_prompt=default_prompt
+            _config.get_config(checkpoint.config),
+            checkpoint.dir,
+            default_prompt=default_prompt,
+            rtc_config=rtc_config,
         )
     raise ValueError(f"Unsupported environment mode: {env}")
 
 
 def create_policy(args: Args) -> _policy.Policy:
     """Create a policy from the given arguments."""
+    rtc_config = args.rtc_config if args.rtc else None
     match args.policy:
         case Checkpoint():
             return _policy_config.create_trained_policy(
-                _config.get_config(args.policy.config), args.policy.dir, default_prompt=args.default_prompt
+                _config.get_config(args.policy.config),
+                args.policy.dir,
+                default_prompt=args.default_prompt,
+                rtc_config=rtc_config,
             )
         case Default():
-            return create_default_policy(args.env, default_prompt=args.default_prompt)
+            return create_default_policy(
+                args.env, default_prompt=args.default_prompt, rtc_config=rtc_config
+            )
 
 
 def main(args: Args) -> None:

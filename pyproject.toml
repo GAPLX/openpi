@@ -1,8 +1,7 @@
-# Windows 上用已转换的 PyTorch checkpoint 做推理。
-# 安装时用本文件替换仓库根目录的 pyproject.toml，再执行 uv sync。
-# 只锁定 torch==2.7.1+cu128。transformers==4.53.2 是 PI0Pytorch 的版本检查，不能改。
-# 同步完成后覆盖 transformers：
-#   xcopy /E /Y src\openpi\models_pytorch\transformers_replace\* .venv\Lib\site-packages\transformers\
+# Env used in Windows/Mac for torch-formated checkpoint inference.
+# Do not forget to replace transformers：
+#   win: xcopy /E /Y src\openpi\models_pytorch\transformers_replace\* .venv\Lib\site-packages\transformers\
+#   mac: cp -r src/openpi/models_pytorch/transformers_replace/* .venv/lib/python3.12/site-packages/transformers/
 
 [build-system]
 requires = ["hatchling"]
@@ -13,38 +12,57 @@ name = "openpi"
 version = "0.1.0"
 description = "PyTorch inference environment for a converted openpi checkpoint"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "augmax>=0.3.4",
-    "beartype>=0.19.0",
-    "chex>=0.1.90",
-    "einops>=0.8.0",
-    "filelock>=3.16.1",
-    "flax>=0.10.2",
-    "fsspec[gcs]>=2024.6.0",
-    "jax>=0.5.3",
-    "jaxtyping>=0.2.36",
+    "augmax==0.4.1",
+    "beartype==0.19.0",
+    "bridge",
+    "chex==0.1.89",
+    "einops==0.8.2",
+    "equinox==0.12.2",
+    "filelock==4.2.9",
+    "flax==0.10.2",
+    "fsspec[gcs]==2025.3.0",
+    "jax==0.5.3",
+    "jaxtyping==0.2.36",
     "lerobot",
-    "ml_collections>=1.0.0",
-    "numpydantic>=1.6.6",
+    "ml_collections==1.0.0",
+    "numpydantic==1.8.1",
     "openpi-client",
-    "optax",
-    "orbax-checkpoint>=0.11.13",
-    "safetensors",
-    "sentencepiece>=0.2.0",
+    "optax==0.2.4",
+    "orbax-checkpoint==0.11.13",
+    "pytest==9.2.0",
+    "safetensors==0.8.0",
+    "sentencepiece==0.2.3",
     "torch==2.7.1",
     "torchvision==0.22.1",
-    "tqdm-loggable>=0.2",
+    "tqdm-loggable==0.4.1",
     "transformers==4.53.2",
-    "typing-extensions>=4.12.2",
-    "tyro>=0.9.5",
+    "treescope==0.1.10",
+    "typing-extensions==4.16.0",
+    "tyro==1.0.17",
 ]
 
 [project.urls]
 Repository = "https://github.com/Physical-Intelligence/openpi"
 
+[tool.uv]
+constraint-dependencies = [
+    "click==8.5.0",
+    "datasets==3.6.0",
+    "dill==0.3.8",
+    "huggingface-hub==0.36.2",
+    "ml-dtypes==0.5.4",
+    "multiprocess==0.70.16",
+    "numpy==1.26.4",
+    "pyarrow==20.0.0",
+    "regex==2026.9.29",
+    "tensorstore==0.1.86",
+]
+
 [tool.uv.sources]
 openpi-client = { workspace = true }
+bridge = { path = "../bridge", editable = true }
 torch = [{ index = "pytorch-cu128" }]
 torchvision = [{ index = "pytorch-cu128" }]
 

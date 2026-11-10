@@ -5,9 +5,11 @@ import socket
 
 import tyro
 
+from openpi import transforms as _transforms
 from openpi.models import rtc as _rtc
 from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
+from openpi.policies import xlerobot_policy
 from openpi.serving import websocket_policy_server
 from openpi.training import config as _config
 
@@ -19,6 +21,7 @@ class EnvMode(enum.Enum):
     ALOHA_SIM = "aloha_sim"
     DROID = "droid"
     LIBERO = "libero"
+    XLEROBOT = "xlerobot"
 
 
 @dataclasses.dataclass
@@ -80,6 +83,12 @@ DEFAULT_CHECKPOINT: dict[EnvMode, Checkpoint] = {
     ),
 }
 
+# Inference-only transforms that convert the raw observations sent by an environment into the keys produced by
+# the training repack transform.
+ENV_REPACK_TRANSFORMS: dict[EnvMode, _transforms.Group] = {
+    EnvMode.XLEROBOT: _transforms.Group(inputs=[xlerobot_policy.XlerobotRawInputsRepack()]),
+}
+
 
 def create_default_policy(
     env: EnvMode,
@@ -94,6 +103,7 @@ def create_default_policy(
             checkpoint.dir,
             default_prompt=default_prompt,
             rtc_config=rtc_config,
+            repack_transforms=ENV_REPACK_TRANSFORMS.get(env),
         )
     raise ValueError(f"Unsupported environment mode: {env}")
 
@@ -108,6 +118,7 @@ def create_policy(args: Args) -> _policy.Policy:
                 args.policy.dir,
                 default_prompt=args.default_prompt,
                 rtc_config=rtc_config,
+                repack_transforms=ENV_REPACK_TRANSFORMS.get(args.env),
             )
         case Default():
             return create_default_policy(

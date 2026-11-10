@@ -394,7 +394,7 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 class XlerobotDataConfig(DataConfigFactory):
     """Data config for XLerobot datasets recorded by the bridge `DatasetRecorder`.
 
-    At inference time, raw observations from the bridge `ChunkClient` are converted with
+    At inference time, raw XLerobot observations are converted with
     `xlerobot_policy.XlerobotRawInputsRepack`, which produces the same keys as the repack transform below.
     """
 
@@ -1158,7 +1158,6 @@ _CONFIGS = [
             repo_id="danceinyourface/pickplace_19",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
-            adapt_to_aloha=False,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader(
             "gs://openpi-assets/checkpoints/pi0_base/params"
@@ -1190,7 +1189,6 @@ _CONFIGS = [
             repo_id="danceinyourface/pickplace_19",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
-            adapt_to_aloha=False,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader(
             "gs://openpi-assets/checkpoints/pi05_droid/params"

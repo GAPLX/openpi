@@ -27,7 +27,7 @@ ACTION_DIM = len(JOINTS)
 
 
 def make_xlerobot_example() -> dict:
-    """Creates a random raw XLerobot observation, as sent by the bridge `ChunkClient`."""
+    """Creates a random raw XLerobot observation, as sent to the policy server at inference time."""
     return {
         **{joint: np.float32(np.random.uniform(-90, 90)) for joint in JOINTS},
         **{
@@ -49,10 +49,10 @@ def _parse_image(image) -> np.ndarray:
 
 @dataclasses.dataclass(frozen=True)
 class XlerobotRawInputsRepack(transforms.DataTransformFn):
-    """Converts a raw XLerobot observation recieved from ChunkClient into the format produced by the training repack transform.
+    """Converts a raw XLerobot observation into the format produced by the training repack transform.
 
-    Inference only. Pass it as `repack_transforms` to `create_trained_policy`. `actions` (the RTC `prev_actions`)
-    and `prompt` are kept as is.
+    Inference only. Pass it as `repack_transforms` to `create_trained_policy` (`serve_policy.py --env XLEROBOT` does
+    this). `actions` (the RTC `prev_actions`) and `prompt` are kept as is.
     """
 
     def __call__(self, data: dict) -> dict:

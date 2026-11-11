@@ -281,10 +281,10 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.9"
 
-    config = _config.get_config("pi0_xlerobot_lora")
+    config = _config.get_config("pi05_xlerobot_lora")
     config = dataclasses.replace(
         config,
-        exp_name="debug_001",
+        exp_name="version_01",
         overwrite=True,
     )
     main(config)

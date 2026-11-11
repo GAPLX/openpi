@@ -1191,9 +1191,9 @@ _CONFIGS = [
             extra_delta_transform=True,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader(
-            "gs://openpi-assets/checkpoints/pi05_droid/params"
+            "gs://openpi-assets/checkpoints/pi05_base/params"
         ),
-        num_train_steps=20_000,
+        num_train_steps=30_000,
         batch_size=32,
         freeze_filter=pi0_config.Pi0Config(
             pi05=True,
